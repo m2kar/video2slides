@@ -1,4 +1,3 @@
-```markdown
 # video2slides
 
 视频转幻灯片工具
@@ -14,7 +13,8 @@
 确保你已经安装了 [Python](https://www.python.org/) 和 [pip](https://pip.pypa.io/):
 
 ```bash
-pip install video2slides
+git clone 
+pip install .
 ```
 
 ## 使用方法
@@ -65,4 +65,3 @@ class Config:
 ## 许可证
 
 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
-```

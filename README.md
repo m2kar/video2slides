@@ -43,6 +43,13 @@ video2slides example.mp4
 video2slides example.mp4 output.pptx
 ```
 
+字幕:
+
+```bash
+# 音轨转换为字幕，放到幻灯片备注:
+
+video2slides example.mp4 --srt
+```
 ## 配置
 
 可以通过修改 `video2slides/main.py` 中的 `Config` 类来调整场景检测参数：
@@ -61,6 +68,8 @@ class Config:
 - [typer](https://typer.tiangolo.com/)
 - [python-pptx](https://python-pptx.readthedocs.io/)
 - [Pillow](https://python-pillow.org/)
+
+- [openai-whisper](https://github.com/openai/whisper)
 
 ## 许可证
 

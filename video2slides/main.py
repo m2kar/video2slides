@@ -1,5 +1,6 @@
 # video2slides/main.py
 import os
+import shutil
 import typer
 from typing_extensions import Annotated
 from typing import Optional
@@ -11,13 +12,14 @@ from pptx.util import Inches
 from PIL import Image
 
 DEBUG=bool(os.getenv("DEBUG",False))
+
 class Config:
-    skip_frames: int = 0
+    skip_frames: int = 5
     num_images:int = 7
     threshold: float = 0.1  # 提高阈值以减少误切
     min_scene_len: float = 0.5  # 最小场景时间长度(s)
     
-def make_pptx(img_list:list, output:str):
+def make_pptx(output:str,img_list:list,note_list:list=None):
     prs=Presentation()
     
     with open(img_list[0], 'rb') as f:
@@ -30,24 +32,73 @@ def make_pptx(img_list:list, output:str):
     prs.slide_height = Inches(height_in)
     
     blank_slide_layout = prs.slide_layouts[6]
-    for img in img_list:
+    for i,img in enumerate(img_list):
         slide = prs.slides.add_slide(blank_slide_layout)
         left = top = 0
         pic = slide.shapes.add_picture(img, left, top, width=prs.slide_width, height=prs.slide_height)
         
-        # 添加备注信息
-        notes_slide = slide.notes_slide
-        text_frame = notes_slide.notes_text_frame
-        text_frame.text = f"备注信息: {os.path.basename(img)}"
+        # add note
+        if note_list is not None:
+            note = note_list[i]
+            slide.notes_slide.notes_text_frame.text = note
         
     prs.save(output)
     
+# Scene Number,Start Frame,Start Timecode,Start Time (seconds),End Frame,End Timecode,End Time (seconds),Length (frames),Length (timecode),Length (seconds)
+# 1,1,00:00:00.000,0.000,174,00:00:06.960,6.960,174,00:00:06.960,6.960
+# 7,16405,00:10:56.160,656.160,18024,00:12:00.960,720.960,1620,00:01:04.800,64.800
+def time_info(scene_info_csv:str):
+    with open(scene_info_csv) as f:
+        f.readline()
+        f.readline()
+        lines=f.readlines()
+    scene_infos=[l.strip().split(",") for l in lines]
+    time_notes=[ f"Time Info: scene {scene_details[0]}, {scene_details[2]}-{scene_details[5]} ({scene_details[9]}s)"
+                for scene_details in scene_infos]
+    return time_notes
+ 
+def seconds_to_timecode(seconds):
+    return f"{int(seconds//3600):02d}:{int(seconds%3600//60):02d}:{seconds%60:06.3f}"
+
+def srt_info(scene_info_csv:str,video_path:str):
+    print("[*] Converting video to text...")
+
+    import whisper
+    model = whisper.load_model("turbo")
+    result = model.transcribe(video_path,verbose=True)
+    segments=result["segments"]
+    print("[*] Convert video to srt Done.")
+        
+    with open(scene_info_csv) as f:
+        f.readline()
+        f.readline()
+        lines=f.readlines()
+    scene_infos=[l.strip().split(",") for l in lines]
+    time_notes=[ f"Time Info: scene {scene_details[0]}, {scene_details[2]}-{scene_details[5]} ({scene_details[9]}s)"
+                for scene_details in scene_infos]
+    
+    srt_notes=[]
+    for i,scene in enumerate(scene_infos):
+        scene_number=scene[0]
+        start_seconds=float(scene[3])
+        end_seconds=float(scene[6])
+        srt_notes.append(f"")
+        for seg in segments:
+            if start_seconds<=seg["start"]<=end_seconds or start_seconds<=seg["end"]<=end_seconds:
+                seg_start_timecode = seconds_to_timecode(seg["start"])
+                seg_end_timecode = seconds_to_timecode(seg["end"])
+                srt_notes[i]+=f"[{seg_start_timecode} --> {seg_end_timecode}] {seg['text']}\n"
+        srt_notes[i]+=time_notes[i]
+    return srt_notes
+
 app = typer.Typer()
 
 @app.command()
 def main(
     input: Annotated[str, typer.Argument(..., help="输入视频文件路径")],
-    output: Annotated[Optional[str], typer.Argument(...,help="输出pptx文件路径")] =None
+    output: Annotated[Optional[str], typer.Argument(...,help="输出pptx文件路径")] =None,
+    srt: bool = typer.Option(False, help="是否生成字幕")
+    # srt: Annotated[Optional[bool], typer.Option(False, help="是否生成字幕")]=False
     ):
     timestamp=datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     if output is None:
@@ -66,7 +117,7 @@ def main(
         f" -fs {Config.skip_frames} "
         f" detect-hash --size 16  --threshold {Config.threshold}  --lowpass 2 "
         f" --min-scene-len {Config.min_scene_len} "
-        f" list-scenes "
+        f" list-scenes --filename scenes_info.csv "
         f" save-images --num-images {Config.num_images} --filename scene\\$SCENE_NUMBER-img\\$IMAGE_NUMBER "
         f" export-html "
     )
@@ -74,16 +125,23 @@ def main(
     os.system(scenedetect_cmd)
         
     # get the image list
-    img_list=os.listdir(tmp_output)
-    img_list=[f for f in img_list if re.match(rf"scene\d+-img0{Config.num_images-1}.jpg",f)]
-    img_list.sort()
-    img_list=[os.path.join(tmp_output,f) for f in img_list]
+    imgs_list=os.listdir(tmp_output)
+    imgs_list=[f for f in imgs_list if re.match(rf"scene\d+-img0{Config.num_images-1}.jpg",f)]
+    imgs_list.sort()
+    imgs_list=[os.path.join(tmp_output,f) for f in imgs_list]
+    
+    # get the note list
+    if srt:
+        notes_list=srt_info(os.path.join(tmp_output,"scenes_info.csv"),input)
+    else:
+        time_notes=time_info(os.path.join(tmp_output,"scenes_info.csv"))
+        notes_list=time_notes
     
     # convert to pptx
-    make_pptx(img_list,output)
+    make_pptx(output,imgs_list,notes_list)
     
     if not DEBUG:
-        os.removedirs(tmp_output)
+        shutil.rmtree(tmp_output,ignore_errors=True)
         print(f"未删除临时文件夹 {tmp_output}")
     print(f"已生成 {output}")
     

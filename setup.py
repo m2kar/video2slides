@@ -1,3 +1,10 @@
+# Copyright (c) 2024 m2kar
+# Created: 2024/12/01
+# Author: m2kar <m2kar.cn#gmail.com>
+# License: MIT
+# File: setup.py
+# Description: setup.py for video2slides
+
 # setup.py
 from setuptools import setup, find_packages
 

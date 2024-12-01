@@ -1,3 +1,10 @@
+# Copyright (c) 2024 m2kar
+# Created: 2024/12/01
+# Author: m2kar <m2kar.cn#gmail.com>
+# License: MIT
+# File: main.py
+# Description: main.py for video2slides, convert video to pptx slides
+
 # video2slides/main.py
 import os
 import sys

@@ -82,24 +82,12 @@ def seconds_to_timecode(seconds):
     return f"{int(seconds//3600):02d}:{int(seconds%3600//60):02d}:{seconds%60:06.3f}"
 
 def srt_info(scene_info_csv:str,video_path:str):
-    
-    class _CustomProgressBar(tqdm.tqdm):
-        def __init__(self, *args, **kwargs):
-            kwargs["desc"]="Transcribing"
-            super().__init__(*args, **kwargs)
-            self._current = self.n  # Set the initial value
-            
-    # Inject into tqdm.tqdm of Whisper, so we can see progress
-    import whisper.transcribe 
-    transcribe_module = sys.modules['whisper.transcribe'].tqdm.tqdm = _CustomProgressBar
-
     import whisper
-
-    print("[*] Converting video to text...")
 
     # 加载模型
     model = whisper.load_model("turbo")
     # 转录音轨
+    print("[*] Converting video to text...")
     result = model.transcribe(video_path,fp16=False,verbose=False)
     
     segments=result["segments"]

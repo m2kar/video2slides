@@ -168,7 +168,7 @@ def screenshots(scene_info_csv:str,video_path:str,tmp_dir:str):
 def get_video_fps(video_path:str):
     # 使用 ffprobe 获取视频信息
 
-    cmd = f"ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of default=noprint_wrappers=1:nokey=1 {video_path}"
+    cmd = f"ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of default=noprint_wrappers=1:nokey=1 '{video_path}'"
     result = os.popen(cmd).read().strip()
     
     # 解析帧率信息

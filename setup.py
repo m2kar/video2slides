@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="video2slides",
-    version="0.0.2",
+    version="0.0.3",
     packages=find_packages(),
     install_requires=[
         # 列出你的包依赖项
@@ -11,6 +11,7 @@ setup(
         "typer",
         "python-pptx",
         "pillow",
+        "openai-whisper"
     ],
     entry_points={
         'console_scripts': [

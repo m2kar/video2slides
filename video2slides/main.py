@@ -15,7 +15,7 @@ DEBUG=bool(os.getenv("DEBUG",False))
 
 class Config:
     skip_frames: int = 5
-    num_images:int = 7
+    num_images:int = 9
     threshold: float = 0.1  # 提高阈值以减少误切
     min_scene_len: float = 0.5  # 最小场景时间长度(s)
     
@@ -77,18 +77,37 @@ def srt_info(scene_info_csv:str,video_path:str):
     time_notes=[ f"Time Info: scene {scene_details[0]}, {scene_details[2]}-{scene_details[5]} ({scene_details[9]}s)"
                 for scene_details in scene_infos]
     
-    srt_notes=[]
+    srt_notes = [""] * len(scene_infos)
+    for seg in segments:
+        seg_start = seg["start"]
+        seg_end = seg["end"]
+        seg_text = seg["text"]
+        
+        max_intersection = 0
+        assigned_scene_index = -1
+        
+        for idx, scene in enumerate(scene_infos):
+            scene_start = float(scene[3])  # 假设 start_seconds 在索引3
+            scene_end = float(scene[6])    # 假设 end_seconds 在索引6
+            
+            # 计算交集时间
+            overlap_start = max(seg_start, scene_start)
+            overlap_end = min(seg_end, scene_end)
+            overlap = max(0, overlap_end - overlap_start)
+            
+            if overlap > max_intersection:
+                max_intersection = overlap
+                assigned_scene_index = idx
+        
+        if assigned_scene_index != -1:
+            # 添加字幕到对应的场景备注
+            if srt_notes[assigned_scene_index]:
+                srt_notes[assigned_scene_index] += "\n" + seg_text
+            else:
+                srt_notes[assigned_scene_index] = seg_text
+    
     for i,scene in enumerate(scene_infos):
-        scene_number=scene[0]
-        start_seconds=float(scene[3])
-        end_seconds=float(scene[6])
-        srt_notes.append(f"")
-        for seg in segments:
-            if start_seconds<=seg["start"]<=end_seconds or start_seconds<=seg["end"]<=end_seconds:
-                seg_start_timecode = seconds_to_timecode(seg["start"])
-                seg_end_timecode = seconds_to_timecode(seg["end"])
-                srt_notes[i]+=f"[{seg_start_timecode} --> {seg_end_timecode}] {seg['text']}\n"
-        srt_notes[i]+=time_notes[i]
+        srt_notes[i]+="\n\n" + time_notes[i]
     return srt_notes
 
 app = typer.Typer()
@@ -97,7 +116,8 @@ app = typer.Typer()
 def main(
     input: Annotated[str, typer.Argument(..., help="输入视频文件路径")],
     output: Annotated[Optional[str], typer.Argument(...,help="输出pptx文件路径")] =None,
-    srt: bool = typer.Option(False, help="是否生成字幕")
+    srt: bool = typer.Option(False, help="是否生成字幕"),
+    
     # srt: Annotated[Optional[bool], typer.Option(False, help="是否生成字幕")]=False
     ):
     timestamp=datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
@@ -123,6 +143,8 @@ def main(
     )
     print(scenedetect_cmd)
     os.system(scenedetect_cmd)
+
+    # 
         
     # get the image list
     imgs_list=os.listdir(tmp_output)
@@ -140,9 +162,11 @@ def main(
     # convert to pptx
     make_pptx(output,imgs_list,notes_list)
     
-    if not DEBUG:
+    if DEBUG:
+        print(f"未删除临时文件夹： {tmp_output}")
+    else:
         shutil.rmtree(tmp_output,ignore_errors=True)
-        print(f"未删除临时文件夹 {tmp_output}")
+        print(f"删除临时文件夹 {tmp_output}")
     print(f"已生成 {output}")
     
 if __name__ == "__main__":

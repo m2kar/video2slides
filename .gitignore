@@ -1,3 +1,5 @@
+tmp/
+tmp-v2s-*/
 # mac os
 .DS_Store
 
